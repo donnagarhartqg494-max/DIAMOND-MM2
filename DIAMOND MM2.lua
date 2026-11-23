@@ -36,6 +36,9 @@ local AutoRefresh = true
 local AutoKillNPC = false
 local NPCKillRadius = 12
 local LastNPCAttack = 0
+local AutoFarmCoins = false
+local LastCoinMove = 0
+local CoinTarget = nil
 
 local SpeedEnabled = false
 local JumpEnabled = false
@@ -416,6 +419,7 @@ local PageNames = {
     "Visuals",
     "Themes",
     "Combat",
+    "Coins",
     "Settings"
 }
 
@@ -460,6 +464,7 @@ local AvatarIds = {
     Visuals = LP.UserId,
     Themes = OWNER_ID,
     Combat = LP.UserId,
+    Coins = LP.UserId,
     Settings = DEV_ID
 }
 
@@ -1277,6 +1282,80 @@ Button(Combat, "📏 Радиус: 12 studs", function()
 end)
 
 --========================================================
+-- AUTO FARM COINS
+-- Walks to visible coin parts; does not teleport or invoke remotes.
+--========================================================
+
+local function FindNearestCoin()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then return nil end
+
+    local nearest, nearestDistance = nil, 1800
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if object:IsA("BasePart") and object:IsDescendantOf(Workspace) then
+            local name = string.lower(object.Name)
+            local looksLikeCoin = string.find(name, "coin", 1, true) ~= nil
+            if looksLikeCoin and object.Transparency < 1 and object.CanTouch then
+                local distance = (object.Position - root.Position).Magnitude
+                if distance < nearestDistance then
+                    nearest = object
+                    nearestDistance = distance
+                end
+            end
+        end
+    end
+    return nearest, nearestDistance
+end
+
+local function UpdateAutoFarmCoins()
+    if not AutoFarmCoins or not Running then return end
+    if os.clock() - LastCoinMove < 0.65 then return end
+    LastCoinMove = os.clock()
+
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then return end
+
+    if not CoinTarget or not CoinTarget.Parent
+        or (CoinTarget.Position - root.Position).Magnitude < 5 then
+        CoinTarget = FindNearestCoin()
+    end
+
+    if CoinTarget and CoinTarget.Parent then
+        hum:MoveTo(CoinTarget.Position)
+    else
+        CoinTarget = nil
+    end
+end
+
+local CoinsPage = PageFrames.Coins
+Label(CoinsPage, "🪙 AUTO FARM COINS")
+Label(CoinsPage, "Автоматически идёт к ближайшим видимым монетам.")
+Toggle(CoinsPage, "Auto Farm Coins", false, function(value)
+    AutoFarmCoins = value
+    CoinTarget = nil
+    if not value then
+        local char = LP.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if hum and root then hum:MoveTo(root.Position) end
+    end
+    Toast(value and "Auto Farm Coins ON" or "Auto Farm Coins OFF")
+end)
+Button(CoinsPage, "🔎 Найти ближайшую монету", function()
+    local coin, distance = FindNearestCoin()
+    if coin then
+        CoinTarget = coin
+        Toast("Монета найдена • " .. math.floor(distance) .. " studs")
+    else
+        Toast("Монеты не найдены")
+    end
+end)
+
+--========================================================
 -- HOME PAGE
 --========================================================
 
@@ -1526,6 +1605,8 @@ Button(Settings, "🗑 " .. T("Destroy"), function()
     RoleESP = false
     AutoDodge = false
     AutoKillNPC = false
+    AutoFarmCoins = false
+    CoinTarget = nil
     StopFly()
     OpenButton.Visible = false
 
@@ -1731,6 +1812,9 @@ task.spawn(function()
         end
         if AutoKillNPC then
             UpdateAutoKillNPC()
+        end
+        if AutoFarmCoins then
+            UpdateAutoFarmCoins()
         end
         if FlyEnabled then
             UpdateFly()
