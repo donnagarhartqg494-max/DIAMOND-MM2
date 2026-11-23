@@ -1,24 +1,170 @@
 
---==================================================
--- DIAMOND MM2 V1 [BETA]
--- BROWSER UI + OWNER SYSTEM
---==================================================
+--========================================================
+-- 💎 DIAMOND MM2 V1 [BETA]
+-- FULL EDITION
+--========================================================
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local LP = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+
+local LP = Players.LocalPlayer
+
+--========================================================
+-- CONFIGURATION
+--========================================================
 
 local OWNER_ID = 7162643277
 local DEV_ID = 4918761384
 
--- PUT YOUR RAW GITHUB SCRIPT URL HERE
 local SCRIPT_URL = "YOUR_RAW_GITHUB_URL"
 
+local Running = true
+local Language = "RU"
+local Device = "Auto"
+local ThemeName = "Blue"
+
+local RoleESP = false
+local MurderAlert = false
+local SheriffAlert = false
+local AutoDodge = false
+local AutoRefresh = true
+
+local SpeedEnabled = false
+local JumpEnabled = false
+
+local PreviousRoles = {}
+local ESPObjects = {}
+local PlayerTags = {}
+local KnifeObjects = {}
+
+local OriginalSpeed = 16
+local OriginalJump = 50
+
+--========================================================
+-- TRANSLATIONS
+--========================================================
+
+local Texts = {
+    RU = {
+        Home = "Главная",
+        Roles = "Роли",
+        Visuals = "Визуалы",
+        Themes = "Темы",
+        Settings = "Настройки",
+        Welcome = "ДОБРО ПОЖАЛОВАТЬ",
+        Version = "Версия V1 [BETA]",
+        RoleESP = "ESP ролей",
+        MurderAlert = "Уведомление об убийце",
+        SheriffAlert = "Уведомление о шерифе",
+        AutoRefresh = "Автообновление ESP",
+        AutoDodge = "Автоуклонение от ножей",
+        Speed = "Ускорение",
+        Jump = "Высокий прыжок",
+        Refresh = "Обновить ESP",
+        Detection = "Определение ролей",
+        Unknown = "НЕИЗВЕСТНО",
+        Murderer = "УБИЙЦА",
+        Sheriff = "ШЕРИФ",
+        Innocent = "НЕВИНОВЕН",
+        Language = "ВЫБОР ЯЗЫКА",
+        Device = "ВЫБОР УСТРОЙСТВА",
+        Reload = "ПЕРЕЗАГРУЗИТЬ СКРИПТ",
+        Destroy = "УДАЛИТЬ СКРИПТ",
+        Enabled = "Включено",
+        Disabled = "Выключено"
+    },
+
+    EN = {
+        Home = "Home",
+        Roles = "Roles",
+        Visuals = "Visuals",
+        Themes = "Themes",
+        Settings = "Settings",
+        Welcome = "WELCOME",
+        Version = "Version V1 [BETA]",
+        RoleESP = "Role ESP",
+        MurderAlert = "Murderer Alert",
+        SheriffAlert = "Sheriff Alert",
+        AutoRefresh = "Auto Refresh ESP",
+        AutoDodge = "Auto Dodge Knives",
+        Speed = "Speed Boost",
+        Jump = "High Jump",
+        Refresh = "Refresh ESP",
+        Detection = "Role Detection",
+        Unknown = "UNKNOWN",
+        Murderer = "MURDERER",
+        Sheriff = "SHERIFF",
+        Innocent = "INNOCENT",
+        Language = "LANGUAGE",
+        Device = "DEVICE",
+        Reload = "RELOAD SCRIPT",
+        Destroy = "DESTROY SCRIPT",
+        Enabled = "Enabled",
+        Disabled = "Disabled"
+    }
+}
+
+local function T(key)
+    return Texts[Language][key] or key
+end
+
+--========================================================
+-- THEMES
+--========================================================
+
+local Themes = {
+    Blue = {
+        Main = Color3.fromRGB(15, 20, 34),
+        Panel = Color3.fromRGB(28, 39, 60),
+        Accent = Color3.fromRGB(65, 155, 255),
+        Text = Color3.fromRGB(245, 248, 255)
+    },
+
+    Purple = {
+        Main = Color3.fromRGB(24, 16, 38),
+        Panel = Color3.fromRGB(50, 32, 75),
+        Accent = Color3.fromRGB(175, 100, 255),
+        Text = Color3.fromRGB(250, 240, 255)
+    },
+
+    Red = {
+        Main = Color3.fromRGB(35, 17, 22),
+        Panel = Color3.fromRGB(70, 32, 40),
+        Accent = Color3.fromRGB(255, 65, 80),
+        Text = Color3.fromRGB(255, 240, 240)
+    },
+
+    Green = {
+        Main = Color3.fromRGB(14, 30, 24),
+        Panel = Color3.fromRGB(30, 60, 45),
+        Accent = Color3.fromRGB(65, 220, 145),
+        Text = Color3.fromRGB(235, 255, 240)
+    },
+
+    Dark = {
+        Main = Color3.fromRGB(13, 13, 17),
+        Panel = Color3.fromRGB(35, 35, 42),
+        Accent = Color3.fromRGB(190, 190, 200),
+        Text = Color3.fromRGB(245, 245, 245)
+    }
+}
+
+local Theme = Themes[ThemeName]
+
+--========================================================
+-- GUI INITIALIZATION
+--========================================================
+
 local Parent = CoreGui
+
 pcall(function()
-    if gethui then Parent = gethui() end
+    if gethui then
+        Parent = gethui()
+    end
 end)
 
 pcall(function()
@@ -30,78 +176,178 @@ local Gui = Instance.new("ScreenGui")
 Gui.Name = "DiamondMM2"
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
+Gui.DisplayOrder = 999
 Gui.Parent = Parent
 
-local Theme = {
-    Main = Color3.fromRGB(15, 20, 34),
-    Panel = Color3.fromRGB(28, 39, 60),
-    Accent = Color3.fromRGB(65, 155, 255),
-    Text = Color3.fromRGB(245, 248, 255)
-}
+local Scale = 1
 
-local Main = Instance.new("Frame")
-Main.Size = UDim2.fromOffset(560, 430)
-Main.Position = UDim2.new(.5, -280, .5, -215)
-Main.BackgroundColor3 = Theme.Main
-Main.BackgroundTransparency = .12
-Main.BorderSizePixel = 0
-Main.Parent = Gui
-
-local function Corner(obj, radius)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, radius)
-    c.Parent = obj
+if UIS.TouchEnabled then
+    Scale = 0.78
 end
 
-Corner(Main, 14)
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(560 * Scale, 440 * Scale)
+Main.Position = UDim2.new(0.5, -280 * Scale, 0.5, -220 * Scale)
+Main.BackgroundColor3 = Theme.Main
+Main.BackgroundTransparency = 0.12
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Parent = Gui
 
-local Stroke = Instance.new("UIStroke")
-Stroke.Color = Theme.Accent
-Stroke.Thickness = 1.5
-Stroke.Parent = Main
+local function Corner(object, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = object
+    return c
+end
 
+local function Tween(object, properties, duration)
+    local animation = TweenService:Create(
+        object,
+        TweenInfo.new(
+            duration or 0.25,
+            Enum.EasingStyle.Quint,
+            Enum.EasingDirection.Out
+        ),
+        properties
+    )
+
+    animation:Play()
+    return animation
+end
+
+Corner(Main, 15)
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Theme.Accent
+MainStroke.Thickness = 1.5
+MainStroke.Parent = Main
+
+--========================================================
 -- ANIMATED BACKGROUND
+--========================================================
+
 local Gradient = Instance.new("UIGradient")
 Gradient.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Theme.Main),
-    ColorSequenceKeypoint.new(.5, Theme.Panel),
+    ColorSequenceKeypoint.new(0.5, Theme.Panel),
     ColorSequenceKeypoint.new(1, Theme.Main)
 })
 Gradient.Parent = Main
 
 task.spawn(function()
-    while Gui.Parent do
-        TweenService:Create(
-            Gradient,
-            TweenInfo.new(7, Enum.EasingStyle.Linear),
-            {Rotation = Gradient.Rotation + 360}
-        ):Play()
-        task.wait(7)
+    while Running and Gui.Parent do
+        Tween(Gradient, {
+            Rotation = Gradient.Rotation + 360
+        }, 8)
+
+        task.wait(8)
     end
 end)
 
+--========================================================
+-- NOTIFICATIONS
+--========================================================
+
+local function Toast(message)
+    if not Gui.Parent then return end
+
+    local toast = Instance.new("Frame")
+    toast.Size = UDim2.fromOffset(280, 65)
+    toast.Position = UDim2.new(0.5, -140, 0, -90)
+    toast.BackgroundColor3 = Color3.fromRGB(27, 30, 39)
+    toast.BackgroundTransparency = 0.08
+    toast.ZIndex = 50
+    toast.Parent = Gui
+    Corner(toast, 14)
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Theme.Accent
+    stroke.Transparency = 0.35
+    stroke.Parent = toast
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 0, 22)
+    title.Position = UDim2.fromOffset(12, 7)
+    title.BackgroundTransparency = 1
+    title.Text = "💎 DIAMOND MM2"
+    title.TextColor3 = Theme.Accent
+    title.TextSize = 13
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 51
+    title.Parent = toast
+
+    local body = Instance.new("TextLabel")
+    body.Size = UDim2.new(1, -20, 0, 25)
+    body.Position = UDim2.fromOffset(12, 31)
+    body.BackgroundTransparency = 1
+    body.Text = message
+    body.TextColor3 = Color3.new(1, 1, 1)
+    body.TextSize = 12
+    body.Font = Enum.Font.Gotham
+    body.TextXAlignment = Enum.TextXAlignment.Left
+    body.ZIndex = 51
+    body.Parent = toast
+
+    Tween(toast, {
+        Position = UDim2.new(0.5, -140, 0, 25)
+    }, 0.35)
+
+    task.delay(3, function()
+        if toast.Parent then
+            Tween(toast, {
+                Position = UDim2.new(0.5, -140, 0, -90)
+            }, 0.3)
+
+            task.wait(0.35)
+            toast:Destroy()
+        end
+    end)
+end
+
+--========================================================
 -- HEADER
+--========================================================
+
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 55)
+Header.Size = UDim2.new(1, 0, 0, 58 * Scale)
 Header.BackgroundColor3 = Theme.Panel
-Header.BackgroundTransparency = .2
+Header.BackgroundTransparency = 0.2
+Header.BorderSizePixel = 0
 Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -20, 1, 0)
-Title.Position = UDim2.fromOffset(14, 0)
+Title.Size = UDim2.new(1, -20, 0, 27)
+Title.Position = UDim2.fromOffset(14, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "DIAMOND MM2  |  V1 [BETA]"
-Title.TextColor3 = Theme.Text
-Title.TextSize = 17
-Title.Font = Enum.Font.GothamBold
+Title.Text = "💎 DIAMOND MM2"
+Title.TextColor3 = Theme.Accent
+Title.TextSize = 18 * Scale
+Title.Font = Enum.Font.GothamBlack
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
--- BROWSER TAB BAR
+local Version = Instance.new("TextLabel")
+Version.Size = UDim2.new(1, -20, 0, 18)
+Version.Position = UDim2.fromOffset(15, 33)
+Version.BackgroundTransparency = 1
+Version.Text = "V1 [BETA] • PREMIUM EDITION"
+Version.TextColor3 = Theme.Text
+Version.TextTransparency = 0.3
+Version.TextSize = 9 * Scale
+Version.Font = Enum.Font.Gotham
+Version.TextXAlignment = Enum.TextXAlignment.Left
+Version.Parent = Header
+
+--========================================================
+-- BROWSER TABS
+--========================================================
+
 local TabBar = Instance.new("ScrollingFrame")
-TabBar.Position = UDim2.fromOffset(8, 62)
-TabBar.Size = UDim2.new(1, -16, 0, 45)
+TabBar.Position = UDim2.fromOffset(8, 64 * Scale)
+TabBar.Size = UDim2.new(1, -16, 0, 43 * Scale)
 TabBar.BackgroundTransparency = 1
 TabBar.BorderSizePixel = 0
 TabBar.ScrollBarThickness = 0
@@ -115,13 +361,6 @@ TabLayout.FillDirection = Enum.FillDirection.Horizontal
 TabLayout.Padding = UDim.new(0, 6)
 TabLayout.Parent = TabBar
 
--- PAGES
-local Pages = Instance.new("Frame")
-Pages.Position = UDim2.fromOffset(10, 115)
-Pages.Size = UDim2.new(1, -20, 1, -125)
-Pages.BackgroundTransparency = 1
-Pages.Parent = Main
-
 local PageNames = {
     "Home",
     "Roles",
@@ -131,9 +370,40 @@ local PageNames = {
 }
 
 local PageFrames = {}
+local TabButtons = {}
 local CurrentPage
 
--- AVATAR ICONS
+local Pages = Instance.new("Frame")
+Pages.Position = UDim2.fromOffset(10, 113 * Scale)
+Pages.Size = UDim2.new(1, -20, 1, -123 * Scale)
+Pages.BackgroundTransparency = 1
+Pages.Parent = Main
+
+for _, name in ipairs(PageNames) do
+    local page = Instance.new("ScrollingFrame")
+    page.Name = name
+    page.Size = UDim2.fromScale(1, 1)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Theme.Accent
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.CanvasSize = UDim2.new()
+    page.Visible = false
+    page.Parent = Pages
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 8 * Scale)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = page
+
+    PageFrames[name] = page
+end
+
+--========================================================
+-- AVATAR THUMBNAILS
+--========================================================
+
 local AvatarIds = {
     Home = OWNER_ID,
     Roles = DEV_ID,
@@ -154,30 +424,6 @@ local function GetAvatar(userId)
     return success and image or ""
 end
 
-local function CreatePage(name)
-    local page = Instance.new("ScrollingFrame")
-    page.Name = name
-    page.Size = UDim2.fromScale(1, 1)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 3
-    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    page.CanvasSize = UDim2.new()
-    page.Visible = false
-    page.Parent = Pages
-
-    local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 9)
-    layout.Parent = page
-
-    PageFrames[name] = page
-    return page
-end
-
-for _, name in ipairs(PageNames) do
-    CreatePage(name)
-end
-
 local function SwitchTab(name)
     CurrentPage = name
 
@@ -185,42 +431,41 @@ local function SwitchTab(name)
         page.Visible = pageName == name
     end
 
-    for _, button in ipairs(TabBar:GetChildren()) do
-        if button:IsA("TextButton") then
-            local active = button.Name == name
-            TweenService:Create(button, TweenInfo.new(.2), {
-                BackgroundColor3 = active
-                    and Theme.Accent
-                    or Theme.Panel
-            }):Play()
-        end
+    for tabName, button in pairs(TabButtons) do
+        Tween(button, {
+            BackgroundColor3 = tabName == name
+                and Theme.Accent
+                or Theme.Panel
+        }, 0.2)
     end
 end
 
 for _, name in ipairs(PageNames) do
     local tab = Instance.new("TextButton")
     tab.Name = name
-    tab.Size = UDim2.fromOffset(105, 39)
+    tab.Size = UDim2.fromOffset(105 * Scale, 38 * Scale)
     tab.BackgroundColor3 = Theme.Panel
     tab.Text = ""
     tab.Parent = TabBar
     Corner(tab, 8)
 
+    TabButtons[name] = tab
+
     local avatar = Instance.new("ImageLabel")
-    avatar.Size = UDim2.fromOffset(25, 25)
-    avatar.Position = UDim2.fromOffset(6, 7)
+    avatar.Size = UDim2.fromOffset(25 * Scale, 25 * Scale)
+    avatar.Position = UDim2.fromOffset(5 * Scale, 6 * Scale)
     avatar.BackgroundTransparency = 1
     avatar.Image = GetAvatar(AvatarIds[name])
     avatar.Parent = tab
     Corner(avatar, 20)
 
     local label = Instance.new("TextLabel")
-    label.Position = UDim2.fromOffset(35, 0)
-    label.Size = UDim2.new(1, -38, 1, 0)
+    label.Size = UDim2.new(1, -35 * Scale, 1, 0)
+    label.Position = UDim2.fromOffset(34 * Scale, 0)
     label.BackgroundTransparency = 1
-    label.Text = name
+    label.Text = T(name)
     label.TextColor3 = Theme.Text
-    label.TextSize = 11
+    label.TextSize = 10 * Scale
     label.Font = Enum.Font.GothamBold
     label.Parent = tab
 
@@ -229,93 +474,112 @@ for _, name in ipairs(PageNames) do
     end)
 end
 
+--========================================================
 -- UI HELPERS
+--========================================================
+
 local function Label(page, text)
-    local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(1, -8, 0, 30)
-    l.BackgroundTransparency = 1
-    l.Text = text
-    l.TextColor3 = Theme.Accent
-    l.TextSize = 14
-    l.Font = Enum.Font.GothamBold
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    l.Parent = page
-    return l
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -8, 0, 28 * Scale)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Theme.Accent
+    label.TextSize = 13 * Scale
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = page
+    return label
 end
 
 local function Button(page, text, callback)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, -8, 0, 38)
-    b.BackgroundColor3 = Theme.Panel
-    b.TextColor3 = Theme.Text
-    b.Text = text
-    b.TextSize = 12
-    b.Font = Enum.Font.GothamBold
-    b.Parent = page
-    Corner(b, 8)
-    b.Activated:Connect(callback)
-    return b
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -8, 0, 38 * Scale)
+    button.BackgroundColor3 = Theme.Panel
+    button.BackgroundTransparency = 0.15
+    button.TextColor3 = Theme.Text
+    button.Text = text
+    button.TextSize = 11 * Scale
+    button.Font = Enum.Font.GothamBold
+    button.Parent = page
+    Corner(button, 8)
+
+    button.Activated:Connect(callback)
+    return button
 end
 
--- IPHONE STYLE SWITCH
-local function Toggle(page, text, callback)
+local function Toggle(page, text, default, callback)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, -8, 0, 43)
+    row.Size = UDim2.new(1, -8, 0, 43 * Scale)
     row.BackgroundColor3 = Theme.Panel
-    row.BackgroundTransparency = .15
+    row.BackgroundTransparency = 0.15
     row.Parent = page
     Corner(row, 9)
 
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -75, 1, 0)
-    label.Position = UDim2.fromOffset(10, 0)
+    label.Size = UDim2.new(1, -75 * Scale, 1, 0)
+    label.Position = UDim2.fromOffset(10 * Scale, 0)
     label.BackgroundTransparency = 1
     label.Text = text
     label.TextColor3 = Theme.Text
-    label.TextSize = 12
+    label.TextSize = 11 * Scale
     label.Font = Enum.Font.GothamMedium
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = row
 
     local switch = Instance.new("TextButton")
-    switch.Size = UDim2.fromOffset(46, 25)
-    switch.Position = UDim2.new(1, -56, .5, -12)
-    switch.BackgroundColor3 = Color3.fromRGB(75, 80, 90)
+    switch.Size = UDim2.fromOffset(46 * Scale, 25 * Scale)
+    switch.Position = UDim2.new(1, -56 * Scale, 0.5, -12.5 * Scale)
+    switch.BackgroundColor3 = default and Theme.Accent
+        or Color3.fromRGB(75, 80, 90)
     switch.Text = ""
     switch.Parent = row
     Corner(switch, 30)
 
     local circle = Instance.new("Frame")
-    circle.Size = UDim2.fromOffset(19, 19)
-    circle.Position = UDim2.fromOffset(3, 3)
+    circle.Size = UDim2.fromOffset(19 * Scale, 19 * Scale)
+    circle.Position = default
+        and UDim2.new(1, -22 * Scale, 0, 3 * Scale)
+        or UDim2.fromOffset(3 * Scale, 3 * Scale)
     circle.BackgroundColor3 = Color3.new(1, 1, 1)
     circle.Parent = switch
     Corner(circle, 20)
 
-    local state = false
+    local state = default
+
+    local function Set(value)
+        state = value
+
+        Tween(switch, {
+            BackgroundColor3 = value and Theme.Accent
+                or Color3.fromRGB(75, 80, 90)
+        }, 0.2)
+
+        Tween(circle, {
+            Position = value
+                and UDim2.new(1, -22 * Scale, 0, 3 * Scale)
+                or UDim2.fromOffset(3 * Scale, 3 * Scale)
+        }, 0.2)
+
+        if callback then callback(value) end
+    end
 
     switch.Activated:Connect(function()
-        state = not state
-
-        TweenService:Create(switch, TweenInfo.new(.2), {
-            BackgroundColor3 = state and Theme.Accent
-                or Color3.fromRGB(75, 80, 90)
-        }):Play()
-
-        TweenService:Create(circle, TweenInfo.new(.2), {
-            Position = state
-                and UDim2.new(1, -22, 0, 3)
-                or UDim2.fromOffset(3, 3)
-        }):Play()
-
-        callback(state)
+        Set(not state)
     end)
 
-    return switch
+    return {
+        Set = Set,
+        Get = function()
+            return state
+        end
+    }
 end
 
--- OWNER / DEV TAGS
-local TAGS = {
+--========================================================
+-- OWNER AND SCRIPT DEV TAGS
+--========================================================
+
+local Staff = {
     [OWNER_ID] = {
         Text = "OWNER",
         Color = Color3.fromRGB(255, 55, 65)
@@ -327,8 +591,6 @@ local TAGS = {
     }
 }
 
-local PlayerTags = {}
-
 local function RemoveTag(player)
     if PlayerTags[player] then
         PlayerTags[player]:Destroy()
@@ -337,13 +599,13 @@ local function RemoveTag(player)
 end
 
 local function AddTag(player)
-    local info = TAGS[player.UserId]
+    local info = Staff[player.UserId]
     if not info then return end
 
     RemoveTag(player)
 
-    local character = player.Character
-    local head = character and character:FindFirstChild("Head")
+    local char = player.Character
+    local head = char and char:FindFirstChild("Head")
     if not head then return end
 
     local billboard = Instance.new("BillboardGui")
@@ -368,25 +630,17 @@ local function AddTag(player)
     PlayerTags[player] = billboard
 end
 
-local function RefreshTags()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if TAGS[player.UserId] then
-            AddTag(player)
-        end
-    end
-end
-
 local function ConnectPlayer(player)
-    if TAGS[player.UserId] then
-        if player.Character then
-            AddTag(player)
-        end
+    if not Staff[player.UserId] then return end
 
-        player.CharacterAdded:Connect(function()
-            task.wait(1)
-            AddTag(player)
-        end)
+    if player.Character then
+        AddTag(player)
     end
+
+    player.CharacterAdded:Connect(function()
+        task.wait(1)
+        if Running then AddTag(player) end
+    end)
 end
 
 for _, player in ipairs(Players:GetPlayers()) do
@@ -397,24 +651,381 @@ Players.PlayerAdded:Connect(ConnectPlayer)
 
 Players.PlayerRemoving:Connect(function(player)
     RemoveTag(player)
+    PreviousRoles[player] = nil
 end)
 
--- HOME
+--========================================================
+-- ROLE DETECTION
+--========================================================
+
+local RoleColors = {
+    Murderer = Color3.fromRGB(255, 55, 65),
+    Sheriff = Color3.fromRGB(65, 150, 255),
+    Innocent = Color3.fromRGB(65, 220, 125),
+    Unknown = Color3.fromRGB(180, 185, 195)
+}
+
+local function ParseRole(value)
+    if type(value) ~= "string" then return nil end
+
+    local role = value:lower()
+
+    if role:find("murder", 1, true) then
+        return "Murderer"
+    elseif role:find("sheriff", 1, true) then
+        return "Sheriff"
+    elseif role:find("innocent", 1, true) then
+        return "Innocent"
+    end
+
+    return nil
+end
+
+local function DetectRole(player)
+    local char = player.Character
+    if not char then return "Unknown" end
+
+    local role = ParseRole(player:GetAttribute("Role"))
+        or ParseRole(char:GetAttribute("Role"))
+
+    if role then return role end
+
+    for _, object in ipairs(char:GetDescendants()) do
+        role = ParseRole(object:GetAttribute("Role"))
+
+        if role then return role end
+
+        if object:IsA("StringValue") then
+            if object.Name:lower() == "role"
+                or object.Name:lower() == "playerrole" then
+
+                role = ParseRole(object.Value)
+                if role then return role end
+            end
+        end
+    end
+
+    -- Equipped weapon detection.
+    for _, object in ipairs(char:GetChildren()) do
+        if object:IsA("Tool") then
+            local name = object.Name:lower()
+
+            if name:find("knife", 1, true) then
+                return "Murderer"
+            elseif name:find("gun", 1, true) then
+                return "Sheriff"
+            end
+        end
+    end
+
+    -- Backpack is only checked for local player.
+    if player == LP then
+        local backpack = player:FindFirstChildOfClass("Backpack")
+
+        if backpack then
+            for _, object in ipairs(backpack:GetChildren()) do
+                if object:IsA("Tool") then
+                    local name = object.Name:lower()
+
+                    if name:find("knife", 1, true) then
+                        return "Murderer"
+                    elseif name:find("gun", 1, true) then
+                        return "Sheriff"
+                    end
+                end
+            end
+        end
+    end
+
+    return "Unknown"
+end
+
+--========================================================
+-- ROLE ESP
+--========================================================
+
+local function RemoveESP(player)
+    local data = ESPObjects[player]
+
+    if data then
+        for _, object in ipairs(data) do
+            if object and object.Parent then
+                object:Destroy()
+            end
+        end
+
+        ESPObjects[player] = nil
+    end
+end
+
+local function UpdateESP(player)
+    if player == LP then return end
+
+    local char = player.Character
+    local head = char and char:FindFirstChild("Head")
+
+    if not char or not head then
+        RemoveESP(player)
+        return
+    end
+
+    local role = DetectRole(player)
+    local color = RoleColors[role]
+
+    local data = ESPObjects[player]
+
+    if data and data[1].Adornee ~= char then
+        RemoveESP(player)
+        data = nil
+    end
+
+    if not data then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "DiamondRoleHighlight"
+        highlight.Adornee = char
+        highlight.FillTransparency = 0.75
+        highlight.OutlineTransparency = 0
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = Gui
+
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "DiamondRoleLabel"
+        billboard.Adornee = head
+        billboard.Size = UDim2.fromOffset(170, 35)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = Gui
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.fromScale(1, 1)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBlack
+        label.TextSize = 13
+        label.TextStrokeTransparency = 0
+        label.Parent = billboard
+
+        data = {highlight, billboard, label}
+        ESPObjects[player] = data
+    end
+
+    data[1].FillColor = color
+    data[1].OutlineColor = color
+    data[2].Adornee = head
+
+    data[3].TextColor3 = color
+    data[3].Text = player.DisplayName .. " | " .. T(role)
+end
+
+local function RefreshESP()
+    if not RoleESP then
+        for player in pairs(ESPObjects) do
+            RemoveESP(player)
+        end
+        return
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        UpdateESP(player)
+    end
+
+    for player in pairs(ESPObjects) do
+        if not player.Parent then
+            RemoveESP(player)
+        end
+    end
+end
+
+--========================================================
+-- ROLE ALERTS
+--========================================================
+
+local function CheckRoles()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LP then
+            local role = DetectRole(player)
+
+            if role ~= "Unknown"
+                and PreviousRoles[player] ~= role then
+
+                PreviousRoles[player] = role
+
+                if role == "Murderer" and MurderAlert then
+                    Toast("🔪 " .. player.DisplayName .. " - " .. T(role))
+                elseif role == "Sheriff" and SheriffAlert then
+                    Toast("🔫 " .. player.DisplayName .. " - " .. T(role))
+                end
+            end
+        end
+    end
+end
+
+--========================================================
+-- AUTO DODGE
+-- Detect visible moving knife projectiles.
+--========================================================
+
+local function IsKnife(object)
+    if not object:IsA("BasePart") then
+        return false
+    end
+
+    local name = object.Name:lower()
+
+    return name:find("knife", 1, true)
+        or name:find("projectile", 1, true)
+        or name:find("throw", 1, true)
+end
+
+local function RegisterKnife(object)
+    if IsKnife(object) then
+        KnifeObjects[object] = true
+    end
+end
+
+for _, object in ipairs(Workspace:GetDescendants()) do
+    RegisterKnife(object)
+end
+
+Workspace.DescendantAdded:Connect(RegisterKnife)
+
+Workspace.DescendantRemoving:Connect(function(object)
+    KnifeObjects[object] = nil
+end)
+
+local DODGE_DISTANCE = 10
+local lastDodge = 0
+local DODGE_COOLDOWN = 0.45
+
+local function FindDanger(root)
+    local bestDistance = DODGE_DISTANCE
+    local bestVelocity
+    local bestPoint
+
+    for knife in pairs(KnifeObjects) do
+        if knife.Parent then
+            local velocity = knife.AssemblyLinearVelocity
+            local speed = velocity.Magnitude
+
+            if speed > 8 then
+                local offset = root.Position - knife.Position
+                local time = math.clamp(
+                    offset:Dot(velocity) / velocity:Dot(velocity),
+                    0,
+                    0.8
+                )
+
+                local predicted = knife.Position + velocity * time
+                local distance = (predicted - root.Position).Magnitude
+
+                local approaching = offset:Dot(velocity) > 0
+
+                if approaching and distance < bestDistance then
+                    bestDistance = distance
+                    bestVelocity = velocity
+                    bestPoint = predicted
+                end
+            end
+        end
+    end
+
+    return bestVelocity, bestDistance, bestPoint
+end
+
+local function Dodge()
+    if not AutoDodge then return end
+    if os.clock() - lastDodge < DODGE_COOLDOWN then return end
+
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+
+    if not hum or not root or hum.Health <= 0 then return end
+
+    local velocity, distance, point = FindDanger(root)
+
+    if velocity and point and distance < DODGE_DISTANCE then
+        local away = root.Position - point
+        local horizontal = Vector3.new(away.X, 0, away.Z)
+
+        if horizontal.Magnitude < 0.1 then
+            horizontal = Vector3.new(-velocity.Z, 0, velocity.X)
+        end
+
+        if horizontal.Magnitude > 0 then
+            lastDodge = os.clock()
+            hum:Move(horizontal.Unit, false)
+        end
+    end
+end
+
+--========================================================
+-- PLAYER MOVEMENT
+--========================================================
+
+local function GetCharacter()
+    local char = LP.Character
+    if not char then return end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    return char, hum
+end
+
+local function SetSpeed(value)
+    SpeedEnabled = value
+
+    local _, hum = GetCharacter()
+    if not hum then return end
+
+    if value then
+        OriginalSpeed = hum.WalkSpeed
+        hum.WalkSpeed = 24
+    else
+        hum.WalkSpeed = OriginalSpeed
+    end
+end
+
+local function SetJump(value)
+    JumpEnabled = value
+
+    local _, hum = GetCharacter()
+    if not hum then return end
+
+    if hum.UseJumpPower then
+        if value then
+            OriginalJump = hum.JumpPower
+            hum.JumpPower = 70
+        else
+            hum.JumpPower = OriginalJump
+        end
+    else
+        if value then
+            OriginalJump = hum.JumpHeight
+            hum.JumpHeight = 14
+        else
+            hum.JumpHeight = OriginalJump
+        end
+    end
+end
+
+--========================================================
+-- HOME PAGE
+--========================================================
+
 local Home = PageFrames.Home
 
-Label(Home, "WELCOME TO DIAMOND MM2")
-Label(Home, "Version V1 [BETA]")
-Label(Home, "Premium Roblox interface")
+Label(Home, "💎 " .. T("Welcome"))
+Label(Home, "DIAMOND MM2")
+Label(Home, T("Version"))
 
 local function StaffCard(page, userId, role, color)
     local card = Instance.new("Frame")
-    card.Size = UDim2.new(1, -8, 0, 65)
+    card.Size = UDim2.new(1, -8, 0, 65 * Scale)
     card.BackgroundColor3 = Theme.Panel
     card.Parent = page
     Corner(card, 10)
 
     local avatar = Instance.new("ImageLabel")
-    avatar.Size = UDim2.fromOffset(48, 48)
+    avatar.Size = UDim2.fromOffset(48 * Scale, 48 * Scale)
     avatar.Position = UDim2.fromOffset(8, 8)
     avatar.BackgroundTransparency = 1
     avatar.Image = GetAvatar(userId)
@@ -422,108 +1033,142 @@ local function StaffCard(page, userId, role, color)
     Corner(avatar, 30)
 
     local name = Instance.new("TextLabel")
-    name.Position = UDim2.fromOffset(65, 8)
+    name.Position = UDim2.fromOffset(65 * Scale, 8)
     name.Size = UDim2.new(1, -75, 0, 25)
     name.BackgroundTransparency = 1
     name.Text = role
     name.TextColor3 = color
-    name.TextSize = 14
+    name.TextSize = 14 * Scale
     name.Font = Enum.Font.GothamBlack
     name.TextXAlignment = Enum.TextXAlignment.Left
     name.Parent = card
 
     local id = Instance.new("TextLabel")
-    id.Position = UDim2.fromOffset(65, 32)
+    id.Position = UDim2.fromOffset(65 * Scale, 32)
     id.Size = UDim2.new(1, -75, 0, 20)
     id.BackgroundTransparency = 1
     id.Text = "ID: " .. userId
     id.TextColor3 = Theme.Text
-    id.TextSize = 10
+    id.TextSize = 10 * Scale
     id.Font = Enum.Font.Gotham
     id.TextXAlignment = Enum.TextXAlignment.Left
     id.Parent = card
 end
 
-StaffCard(Home, OWNER_ID, "OWNER", Color3.fromRGB(255, 55, 65))
-StaffCard(Home, DEV_ID, "SCRIPT DEV", Color3.fromRGB(255, 195, 35))
+Label(Home, "PROJECT TEAM")
 
--- ROLES
+StaffCard(
+    Home,
+    OWNER_ID,
+    "OWNER",
+    Color3.fromRGB(255, 55, 65)
+)
+
+StaffCard(
+    Home,
+    DEV_ID,
+    "SCRIPT DEV",
+    Color3.fromRGB(255, 195, 35)
+)
+
+--========================================================
+-- ROLES PAGE
+--========================================================
+
 local Roles = PageFrames.Roles
 
-Label(Roles, "ROLE INFORMATION")
-Label(Roles, "Roles are shown only when exposed by the game.")
-local RoleStatus = Label(Roles, "Role detection: waiting")
+Label(Roles, "💎 " .. T("Detection"))
 
-Button(Roles, "REFRESH PLAYER TAGS", function()
-    RefreshTags()
-    RoleStatus.Text = "Staff tags refreshed"
+Toggle(Roles, T("RoleESP"), false, function(value)
+    RoleESP = value
+    RefreshESP()
 end)
 
--- VISUALS
+Toggle(Roles, T("MurderAlert"), false, function(value)
+    MurderAlert = value
+end)
+
+Toggle(Roles, T("SheriffAlert"), false, function(value)
+    SheriffAlert = value
+end)
+
+Button(Roles, T("Refresh"), function()
+    RefreshESP()
+    Toast("ESP refreshed")
+end)
+
+Button(Roles, "PRINT DETECTED ROLES", function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        print(player.Name, DetectRole(player))
+    end
+end)
+
+--========================================================
+-- VISUALS PAGE
+--========================================================
+
 local Visuals = PageFrames.Visuals
 
 Label(Visuals, "VISUAL SETTINGS")
 
-local ESPEnabled = false
-
-Toggle(Visuals, "Player ESP", function(value)
-    ESPEnabled = value
-    RoleStatus.Text = value and "ESP enabled" or "ESP disabled"
+Toggle(Visuals, T("AutoRefresh"), true, function(value)
+    AutoRefresh = value
 end)
 
-Button(Visuals, "Refresh visuals", function()
-    RefreshTags()
+Toggle(Visuals, T("AutoDodge"), false, function(value)
+    AutoDodge = value
+    Toast(value and "Auto Dodge ON" or "Auto Dodge OFF")
 end)
 
--- THEMES
+Toggle(Visuals, T("Speed"), false, SetSpeed)
+Toggle(Visuals, T("Jump"), false, SetJump)
+
+--========================================================
+-- THEMES PAGE
+--========================================================
+
 local ThemesPage = PageFrames.Themes
 
-Label(ThemesPage, "SELECT INTERFACE THEME")
-
-local Themes = {
-    Blue = {
-        Main = Color3.fromRGB(15, 20, 34),
-        Panel = Color3.fromRGB(28, 39, 60),
-        Accent = Color3.fromRGB(65, 155, 255)
-    },
-
-    Purple = {
-        Main = Color3.fromRGB(24, 16, 38),
-        Panel = Color3.fromRGB(50, 32, 75),
-        Accent = Color3.fromRGB(175, 100, 255)
-    },
-
-    Red = {
-        Main = Color3.fromRGB(35, 17, 22),
-        Panel = Color3.fromRGB(70, 32, 40),
-        Accent = Color3.fromRGB(255, 65, 80)
-    },
-
-    Green = {
-        Main = Color3.fromRGB(14, 30, 24),
-        Panel = Color3.fromRGB(30, 60, 45),
-        Accent = Color3.fromRGB(65, 220, 145)
-    }
-}
+Label(ThemesPage, "SELECT THEME")
 
 local function ApplyTheme(name)
+    ThemeName = name
     Theme = Themes[name]
+
     Main.BackgroundColor3 = Theme.Main
     Header.BackgroundColor3 = Theme.Panel
-    Stroke.Color = Theme.Accent
+    MainStroke.Color = Theme.Accent
+    Title.TextColor3 = Theme.Accent
+
     Gradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Theme.Main),
-        ColorSequenceKeypoint.new(.5, Theme.Panel),
+        ColorSequenceKeypoint.new(0.5, Theme.Panel),
         ColorSequenceKeypoint.new(1, Theme.Main)
     })
 
+    for _, button in pairs(TabButtons) do
+        button.BackgroundColor3 = Theme.Panel
+    end
+
+    if CurrentPage then
+        TabButtons[CurrentPage].BackgroundColor3 = Theme.Accent
+    end
+
     for _, page in pairs(PageFrames) do
-        for _, child in ipairs(page:GetChildren()) do
-            if child:IsA("TextButton") then
-                child.BackgroundColor3 = Theme.Panel
+        page.ScrollBarImageColor3 = Theme.Accent
+
+        for _, object in ipairs(page:GetChildren()) do
+            if object:IsA("TextButton") then
+                object.BackgroundColor3 = Theme.Panel
+            elseif object:IsA("Frame") then
+                if object:FindFirstChildOfClass("TextButton") then
+                    object.BackgroundColor3 = Theme.Panel
+                end
             end
         end
     end
+
+    Toast("Theme: " .. name)
 end
 
 for name in pairs(Themes) do
@@ -532,33 +1177,100 @@ for name in pairs(Themes) do
     end)
 end
 
--- SETTINGS
+--========================================================
+-- SETTINGS PAGE
+--========================================================
+
 local Settings = PageFrames.Settings
 
-Label(Settings, "SCRIPT CONTROLS")
+Label(Settings, T("Language"))
 
-Button(Settings, "RELOAD SCRIPT", function()
-    if not SCRIPT_URL:find("^https://") or SCRIPT_URL == "YOUR_RAW_GITHUB_URL" then
-        warn("[DIAMOND] Set SCRIPT_URL first!")
+Button(Settings, "🇷🇺 Русский", function()
+    Language = "RU"
+    Toast("Язык: Русский")
+    RefreshESP()
+end)
+
+Button(Settings, "🇬🇧 English", function()
+    Language = "EN"
+    Toast("Language: English")
+    RefreshESP()
+end)
+
+Label(Settings, T("Device"))
+
+Button(Settings, "📱 PHONE", function()
+    Device = "Phone"
+    Scale = 0.78
+
+    Tween(Main, {
+        Size = UDim2.fromOffset(560 * Scale, 440 * Scale)
+    }, 0.3)
+
+    Toast("Phone mode")
+end)
+
+Button(Settings, "🖥 PC", function()
+    Device = "PC"
+    Scale = 1
+
+    Tween(Main, {
+        Size = UDim2.fromOffset(560, 440)
+    }, 0.3)
+
+    Toast("PC mode")
+end)
+
+Button(Settings, "⚡ AUTO", function()
+    Device = "Auto"
+    Scale = UIS.TouchEnabled and 0.78 or 1
+
+    Tween(Main, {
+        Size = UDim2.fromOffset(560 * Scale, 440 * Scale)
+    }, 0.3)
+
+    Toast("Automatic device mode")
+end)
+
+Button(Settings, "🔄 " .. T("Reload"), function()
+    if SCRIPT_URL == "YOUR_RAW_GITHUB_URL" then
+        Toast("Set SCRIPT_URL first!")
         return
     end
 
     local success, err = pcall(function()
         local source = game:HttpGet(SCRIPT_URL)
-        local fn = assert(loadstring(source))
-        fn()
+        local func = assert(loadstring(source))
+        func()
     end)
 
     if not success then
-        warn("[DIAMOND RELOAD ERROR] " .. tostring(err))
+        warn("[DIAMOND RELOAD ERROR]", err)
+        Toast("Reload failed. Check console.")
     end
 end)
 
-Button(Settings, "DESTROY SCRIPT", function()
+Button(Settings, "🗑 " .. T("Destroy"), function()
+    Running = false
+
+    RoleESP = false
+    AutoDodge = false
+
+    for player in pairs(ESPObjects) do
+        RemoveESP(player)
+    end
+
+    for player in pairs(PlayerTags) do
+        RemoveTag(player)
+    end
+
     Gui:Destroy()
 end)
 
--- DRAG ON PC AND MOBILE
+--========================================================
+-- DRAG MENU: PC + TOUCH
+--========================================================
+
 local dragging = false
 local dragStart
 local startPosition
@@ -578,6 +1290,7 @@ UIS.InputChanged:Connect(function(input)
         input.UserInputType == Enum.UserInputType.MouseMovement
         or input.UserInputType == Enum.UserInputType.Touch
     ) then
+
         local delta = input.Position - dragStart
 
         Main.Position = UDim2.new(
@@ -596,12 +1309,139 @@ UIS.InputEnded:Connect(function(input)
     end
 end)
 
--- DEVICE SIZE
-if UIS.TouchEnabled then
-    Main.Size = UDim2.fromOffset(430, 380)
-    Main.Position = UDim2.new(.5, -215, .5, -190)
-end
+--========================================================
+-- FLOATING RESIZE BUTTON
+--========================================================
+
+local Resize = Instance.new("TextButton")
+Resize.Size = UDim2.fromOffset(52, 52)
+Resize.Position = UDim2.new(1, -75, 1, -110)
+Resize.BackgroundColor3 = Theme.Accent
+Resize.Text = "↕"
+Resize.TextSize = 25
+Resize.TextColor3 = Color3.new(1, 1, 1)
+Resize.Font = Enum.Font.GothamBold
+Resize.Parent = Gui
+Resize.ZIndex = 20
+Corner(Resize, 30)
+
+local resizeDragging = false
+local resizeStart
+local originalSize
+local resizePosition
+
+Resize.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        resizeDragging = true
+        resizeStart = input.Position
+        originalSize = Main.Size
+        resizePosition = Resize.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if resizeDragging and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+
+        local delta = input.Position - resizeStart
+
+        Resize.Position = UDim2.new(
+            resizePosition.X.Scale,
+            resizePosition.X.Offset + delta.X,
+            resizePosition.Y.Scale,
+            resizePosition.Y.Offset + delta.Y
+        )
+
+        local change = -delta.Y
+
+        local width = math.clamp(
+            originalSize.X.Offset + change,
+            300,
+            700
+        )
+
+        local height = math.clamp(
+            originalSize.Y.Offset + change,
+            300,
+            750
+        )
+
+        Main.Size = UDim2.fromOffset(width, height)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        resizeDragging = false
+    end
+end)
+
+--========================================================
+-- CHARACTER RESPAWN
+--========================================================
+
+LP.CharacterAdded:Connect(function()
+    task.wait(1)
+
+    if not Running then return end
+
+    local _, hum = GetCharacter()
+
+    if hum then
+        if SpeedEnabled then hum.WalkSpeed = 24 end
+
+        if JumpEnabled then
+            if hum.UseJumpPower then
+                hum.JumpPower = 70
+            else
+                hum.JumpHeight = 14
+            end
+        end
+    end
+end)
+
+--========================================================
+-- MAIN UPDATE LOOP
+--========================================================
+
+task.spawn(function()
+    while Running and Gui.Parent do
+        if RoleESP and AutoRefresh then
+            RefreshESP()
+        end
+
+        CheckRoles()
+
+        task.wait(1)
+    end
+end)
+
+task.spawn(function()
+    while Running and Gui.Parent do
+        if AutoDodge then
+            Dodge()
+        end
+
+        RunService.Heartbeat:Wait()
+    end
+end)
+
+--========================================================
+-- START
+--========================================================
 
 SwitchTab("Home")
 
-print("[DIAMOND MM2 V1 BETA] UI loaded")
+Toast("DIAMOND MM2 V1 [BETA] loaded!")
+
+print("================================")
+print("DIAMOND MM2 V1 [BETA]")
+print("UI: LOADED")
+print("OWNER ID:", OWNER_ID)
+print("DEV ID:", DEV_ID)
+print("================================")
