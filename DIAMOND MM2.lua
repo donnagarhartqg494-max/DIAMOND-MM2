@@ -10,6 +10,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LP = Players.LocalPlayer
 
@@ -41,6 +42,8 @@ local FlyVelocity = nil
 local FlyGyro = nil
 
 local PreviousRoles = {}
+local RoleCache = {}
+local RoleCacheTime = 0
 local ESPObjects = {}
 local PlayerTags = {}
 local KnifeObjects = {}
@@ -325,7 +328,7 @@ Header.BorderSizePixel = 0
 Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -20, 0, 27)
+Title.Size = UDim2.new(1, -78, 0, 27)
 Title.Position = UDim2.fromOffset(14, 5)
 Title.BackgroundTransparency = 1
 Title.Text = "💎 DIAMOND MM2"
@@ -334,6 +337,41 @@ Title.TextSize = 18 * Scale
 Title.Font = Enum.Font.GothamBlack
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.fromOffset(30, 30)
+CloseButton.Position = UDim2.new(1, -38, 0, 7)
+CloseButton.BackgroundColor3 = Color3.fromRGB(205, 55, 65)
+CloseButton.Text = "×"
+CloseButton.TextColor3 = Color3.new(1, 1, 1)
+CloseButton.TextSize = 22
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = Header
+Corner(CloseButton, 8)
+
+local OpenButton = Instance.new("TextButton")
+OpenButton.Name = "DiamondOpenButton"
+OpenButton.Size = UDim2.fromOffset(48, 48)
+OpenButton.Position = UDim2.new(0, 22, 0.5, -24)
+OpenButton.BackgroundColor3 = Theme.Accent
+OpenButton.Text = "💎"
+OpenButton.TextColor3 = Color3.new(1, 1, 1)
+OpenButton.TextSize = 22
+OpenButton.Font = Enum.Font.GothamBlack
+OpenButton.Visible = false
+OpenButton.Parent = Gui
+Corner(OpenButton, 30)
+
+CloseButton.Activated:Connect(function()
+    Main.Visible = false
+    OpenButton.Visible = true
+end)
+
+OpenButton.Activated:Connect(function()
+    Main.Visible = true
+    OpenButton.Visible = false
+end)
 
 local Version = Instance.new("TextLabel")
 Version.Size = UDim2.new(1, -20, 0, 18)
@@ -687,7 +725,54 @@ local function ParseRole(value)
     return nil
 end
 
+local function RefreshRoleCache(force)
+    if not force and os.clock() - RoleCacheTime < 0.8 then
+        return
+    end
+
+    RoleCacheTime = os.clock()
+    local remote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+    if not remote or not remote:IsA("RemoteFunction") then
+        return
+    end
+
+    local ok, data = pcall(function()
+        return remote:InvokeServer()
+    end)
+
+    if not ok or type(data) ~= "table" then
+        return
+    end
+
+    local nextCache = {}
+    for playerName, info in pairs(data) do
+        if type(playerName) == "string" and type(info) == "table" then
+            local parsed = ParseRole(info.Role or info.role or info.PlayerRole)
+            if parsed then
+                nextCache[playerName] = parsed
+            end
+        elseif type(info) == "table" and info.Name then
+            local parsed = ParseRole(info.Role or info.role or info.PlayerRole)
+            if parsed then
+                nextCache[info.Name] = parsed
+            end
+        end
+    end
+
+    if next(nextCache) then
+        RoleCache = nextCache
+    end
+end
+
 local function DetectRole(player)
+    RefreshRoleCache(false)
+
+    -- MM2 role data is available here before players equip their weapons.
+    local cachedRole = RoleCache[player.Name]
+    if cachedRole then
+        return cachedRole
+    end
+
     local char = player.Character
     if not char then return "Unknown" end
 
@@ -698,47 +783,23 @@ local function DetectRole(player)
 
     for _, object in ipairs(char:GetDescendants()) do
         role = ParseRole(object:GetAttribute("Role"))
-
         if role then return role end
 
-        if object:IsA("StringValue") then
-            if object.Name:lower() == "role"
-                or object.Name:lower() == "playerrole" then
-
-                role = ParseRole(object.Value)
-                if role then return role end
-            end
+        if object:IsA("StringValue")
+            and (object.Name:lower() == "role" or object.Name:lower() == "playerrole") then
+            role = ParseRole(object.Value)
+            if role then return role end
         end
     end
 
-    -- Equipped weapon detection.
+    -- Equipped weapon detection is only a fallback.
     for _, object in ipairs(char:GetChildren()) do
         if object:IsA("Tool") then
             local name = object.Name:lower()
-
             if name:find("knife", 1, true) then
                 return "Murderer"
             elseif name:find("gun", 1, true) then
                 return "Sheriff"
-            end
-        end
-    end
-
-    -- Backpack is only checked for local player.
-    if player == LP then
-        local backpack = player:FindFirstChildOfClass("Backpack")
-
-        if backpack then
-            for _, object in ipairs(backpack:GetChildren()) do
-                if object:IsA("Tool") then
-                    local name = object.Name:lower()
-
-                    if name:find("knife", 1, true) then
-                        return "Murderer"
-                    elseif name:find("gun", 1, true) then
-                        return "Sheriff"
-                    end
-                end
             end
         end
     end
@@ -1359,6 +1420,7 @@ Button(Settings, "🗑 " .. T("Destroy"), function()
     RoleESP = false
     AutoDodge = false
     StopFly()
+    OpenButton.Visible = false
 
     for player in pairs(ESPObjects) do
         RemoveESP(player)
@@ -1414,34 +1476,33 @@ UIS.InputEnded:Connect(function(input)
 end)
 
 --========================================================
--- FLOATING RESIZE BUTTON
+-- RESIZE HANDLE ON THE WINDOW
 --========================================================
 
 local Resize = Instance.new("TextButton")
-Resize.Size = UDim2.fromOffset(52, 52)
-Resize.Position = UDim2.new(1, -75, 1, -110)
+Resize.Name = "ResizeHandle"
+Resize.Size = UDim2.fromOffset(24, 24)
+Resize.AnchorPoint = Vector2.new(1, 1)
+Resize.Position = UDim2.new(1, -5, 1, -5)
 Resize.BackgroundColor3 = Theme.Accent
-Resize.Text = "↕"
-Resize.TextSize = 25
+Resize.Text = "↘"
+Resize.TextSize = 17
 Resize.TextColor3 = Color3.new(1, 1, 1)
 Resize.Font = Enum.Font.GothamBold
-Resize.Parent = Gui
-Resize.ZIndex = 20
-Corner(Resize, 30)
+Resize.Parent = Main
+Resize.ZIndex = 30
+Corner(Resize, 7)
 
 local resizeDragging = false
 local resizeStart
 local originalSize
-local resizePosition
 
 Resize.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
-
         resizeDragging = true
         resizeStart = input.Position
-        originalSize = Main.Size
-        resizePosition = Resize.Position
+        originalSize = Main.AbsoluteSize
     end
 end)
 
@@ -1450,30 +1511,9 @@ UIS.InputChanged:Connect(function(input)
         input.UserInputType == Enum.UserInputType.MouseMovement
         or input.UserInputType == Enum.UserInputType.Touch
     ) then
-
         local delta = input.Position - resizeStart
-
-        Resize.Position = UDim2.new(
-            resizePosition.X.Scale,
-            resizePosition.X.Offset + delta.X,
-            resizePosition.Y.Scale,
-            resizePosition.Y.Offset + delta.Y
-        )
-
-        local change = -delta.Y
-
-        local width = math.clamp(
-            originalSize.X.Offset + change,
-            300,
-            700
-        )
-
-        local height = math.clamp(
-            originalSize.Y.Offset + change,
-            300,
-            750
-        )
-
+        local width = math.clamp(originalSize.X + delta.X, 340, 760)
+        local height = math.clamp(originalSize.Y + delta.Y, 300, 760)
         Main.Size = UDim2.fromOffset(width, height)
     end
 end)
@@ -1566,6 +1606,7 @@ Players.PlayerAdded:Connect(WatchCharacter)
 
 task.spawn(function()
     while Running and Gui.Parent do
+        RefreshRoleCache(true)
         if RoleESP and AutoRefresh then
             RefreshESP()
         end
