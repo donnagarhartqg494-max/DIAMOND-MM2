@@ -39,6 +39,11 @@ local LastNPCAttack = 0
 local AutoFarmCoins = false
 local LastCoinMove = 0
 local CoinTarget = nil
+local CoinESPEnabled = false
+local PlayerRadarEnabled = false
+local CoinHighlights = {}
+local RadarTags = {}
+local RoundTimerText = nil
 
 local SpeedEnabled = false
 local JumpEnabled = false
@@ -1354,6 +1359,123 @@ Button(CoinsPage, "🔎 Найти ближайшую монету", function()
         Toast("Монеты не найдены")
     end
 end)
+Toggle(CoinsPage, "Coin ESP", false, function(value)
+    CoinESPEnabled = value
+    RefreshCoinESP()
+    Toast(value and "Coin ESP ON" or "Coin ESP OFF")
+end)
+
+--========================================================
+-- COIN ESP, PLAYER RADAR, ROUND TIMER
+-- Visual-only helpers; no remote calls or player manipulation.
+--========================================================
+
+local function IsCoinPart(part)
+    if not part:IsA("BasePart") then return false end
+    local n = string.lower(part.Name)
+    return string.find(n, "coin", 1, true) ~= nil
+end
+
+local function ClearCoinESP()
+    for obj, highlight in pairs(CoinHighlights) do
+        if highlight and highlight.Parent then highlight:Destroy() end
+        CoinHighlights[obj] = nil
+    end
+end
+
+local function RefreshCoinESP()
+    if not CoinESPEnabled then ClearCoinESP(); return end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if IsCoinPart(obj) and not CoinHighlights[obj] then
+            local h = Instance.new("Highlight")
+            h.Name = "DiamondCoinESP"
+            h.Adornee = obj
+            h.FillColor = Color3.fromRGB(255, 210, 45)
+            h.OutlineColor = Color3.fromRGB(255, 245, 170)
+            h.FillTransparency = 0.35
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            h.Parent = Gui
+            CoinHighlights[obj] = h
+        end
+    end
+    for obj, h in pairs(CoinHighlights) do
+        if not obj.Parent then
+            if h and h.Parent then h:Destroy() end
+            CoinHighlights[obj] = nil
+        end
+    end
+end
+
+local function RemoveRadarTag(player)
+    local tag = RadarTags[player]
+    if tag then tag:Destroy(); RadarTags[player] = nil end
+end
+
+local function UpdatePlayerRadar()
+    if not PlayerRadarEnabled then
+        for player in pairs(RadarTags) do RemoveRadarTag(player) end
+        return
+    end
+    local myChar = LP.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LP and player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            if head and root then
+                local tag = RadarTags[player]
+                if not tag or not tag.Parent then
+                    tag = Instance.new("BillboardGui")
+                    tag.Name = "DiamondRadar"
+                    tag.Adornee = head
+                    tag.Size = UDim2.fromOffset(120, 24)
+                    tag.StudsOffset = Vector3.new(0, 2.7, 0)
+                    tag.AlwaysOnTop = true
+                    tag.Parent = Gui
+                    local label = Instance.new("TextLabel")
+                    label.Name = "Distance"
+                    label.Size = UDim2.fromScale(1, 1)
+                    label.BackgroundTransparency = 1
+                    label.TextColor3 = Color3.fromRGB(100, 220, 255)
+                    label.TextStrokeTransparency = 0.2
+                    label.Font = Enum.Font.GothamBold
+                    label.TextSize = 12
+                    label.Parent = tag
+                    RadarTags[player] = tag
+                end
+                local label = tag:FindFirstChild("Distance")
+                if label then
+                    local distance = myRoot and math.floor((root.Position - myRoot.Position).Magnitude) or 0
+                    label.Text = player.Name .. " • " .. distance .. "m"
+                end
+            else
+                RemoveRadarTag(player)
+            end
+        else
+            RemoveRadarTag(player)
+        end
+    end
+    for player in pairs(RadarTags) do
+        if player.Parent ~= Players then RemoveRadarTag(player) end
+    end
+end
+
+local function ReadRoundTimer()
+    local roots = {Workspace, ReplicatedStorage}
+    for _, root in ipairs(roots) do
+        for _, obj in ipairs(root:GetDescendants()) do
+            local n = string.lower(obj.Name)
+            if string.find(n, "timer", 1, true) or string.find(n, "timeleft", 1, true) then
+                if obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                    return tostring(math.max(0, math.floor(obj.Value))) .. " sec"
+                elseif obj:IsA("StringValue") and obj.Value ~= "" then
+                    return obj.Value
+                end
+            end
+        end
+    end
+    return "Таймер не найден"
+end
 
 --========================================================
 -- HOME PAGE
@@ -1362,6 +1484,7 @@ end)
 local Home = PageFrames.Home
 
 Label(Home, "💎 " .. T("Welcome"))
+RoundTimerText = Label(Home, "⏱ Раунд: поиск таймера...")
 Label(Home, "DIAMOND MM2")
 Label(Home, T("Version"))
 
@@ -1471,6 +1594,11 @@ end)
 Toggle(Visuals, T("Speed"), false, SetSpeed)
 Toggle(Visuals, T("Jump"), false, SetJump)
 Toggle(Visuals, T("Fly"), false, SetFly)
+Toggle(Visuals, "Player Radar", false, function(value)
+    PlayerRadarEnabled = value
+    if not value then UpdatePlayerRadar() end
+    Toast(value and "Player Radar ON" or "Player Radar OFF")
+end)
 
 --========================================================
 -- THEMES PAGE
@@ -1607,6 +1735,10 @@ Button(Settings, "🗑 " .. T("Destroy"), function()
     AutoKillNPC = false
     AutoFarmCoins = false
     CoinTarget = nil
+    CoinESPEnabled = false
+    PlayerRadarEnabled = false
+    ClearCoinESP()
+    for player in pairs(RadarTags) do RemoveRadarTag(player) end
     StopFly()
     OpenButton.Visible = false
 
@@ -1815,6 +1947,15 @@ task.spawn(function()
         end
         if AutoFarmCoins then
             UpdateAutoFarmCoins()
+        end
+        if CoinESPEnabled then
+            RefreshCoinESP()
+        end
+        if PlayerRadarEnabled then
+            UpdatePlayerRadar()
+        end
+        if RoundTimerText and RoundTimerText.Parent then
+            RoundTimerText.Text = "⏱ Раунд: " .. ReadRoundTimer()
         end
         if FlyEnabled then
             UpdateFly()
