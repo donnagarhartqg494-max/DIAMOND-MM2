@@ -33,6 +33,9 @@ local MurderAlert = false
 local SheriffAlert = false
 local AutoDodge = false
 local AutoRefresh = true
+local AutoKillNPC = false
+local NPCKillRadius = 12
+local LastNPCAttack = 0
 
 local SpeedEnabled = false
 local JumpEnabled = false
@@ -62,6 +65,7 @@ local Texts = {
         Visuals = "Визуалы",
         Themes = "Темы",
         Settings = "Настройки",
+        Combat = "Бой (NPC)",
         Welcome = "ДОБРО ПОЖАЛОВАТЬ",
         Version = "Версия V1 [BETA]",
         RoleESP = "ESP ролей",
@@ -92,6 +96,7 @@ local Texts = {
         Visuals = "Visuals",
         Themes = "Themes",
         Settings = "Settings",
+        Combat = "Combat (NPC)",
         Welcome = "WELCOME",
         Version = "Version V1 [BETA]",
         RoleESP = "Role ESP",
@@ -410,6 +415,7 @@ local PageNames = {
     "Roles",
     "Visuals",
     "Themes",
+    "Combat",
     "Settings"
 }
 
@@ -453,6 +459,7 @@ local AvatarIds = {
     Roles = DEV_ID,
     Visuals = LP.UserId,
     Themes = OWNER_ID,
+    Combat = LP.UserId,
     Settings = DEV_ID
 }
 
@@ -1171,6 +1178,105 @@ local function UpdateFly()
 end
 
 --========================================================
+-- COMBAT PAGE: NPC-ONLY TRAINING (OWNER-CREATED PLACE ONLY)
+--========================================================
+
+local function IsOwnUserCreatedPlace()
+    return game.CreatorType == Enum.CreatorType.User
+        and game.CreatorId == LP.UserId
+end
+
+local function FindNearestNPC()
+    local char = LP.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    local bestModel, bestHumanoid, bestRoot
+    local bestDistance = NPCKillRadius
+
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if object:IsA("Model") and object ~= char then
+            local humanoid = object:FindFirstChildOfClass("Humanoid")
+            local root = object:FindFirstChild("HumanoidRootPart")
+                or object:FindFirstChild("Torso")
+                or object:FindFirstChild("UpperTorso")
+
+            if humanoid and root and humanoid.Health > 0
+                and not Players:GetPlayerFromCharacter(object) then
+                local distance = (root.Position - myRoot.Position).Magnitude
+                if distance < bestDistance then
+                    bestModel = object
+                    bestHumanoid = humanoid
+                    bestRoot = root
+                    bestDistance = distance
+                end
+            end
+        end
+    end
+
+    return bestModel, bestHumanoid, bestRoot, bestDistance
+end
+
+local function UpdateAutoKillNPC()
+    if not AutoKillNPC or not Running then return end
+
+    -- Deliberately restricted to a user-owned experience.
+    if not IsOwnUserCreatedPlace() then
+        AutoKillNPC = false
+        Toast("Auto Kill NPC доступен только в вашей собственной игре")
+        return
+    end
+
+    if os.clock() - LastNPCAttack < 0.35 then return end
+
+    local model, humanoid, root = FindNearestNPC()
+    if not model or not humanoid or not root then return end
+
+    -- Avoid activating a weapon when another player is nearby.
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LP and player.Character then
+            local otherRoot = player.Character:FindFirstChild("HumanoidRootPart")
+            if otherRoot and (otherRoot.Position - root.Position).Magnitude < 30 then
+                return
+            end
+        end
+    end
+
+    local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+    if tool and (tool:FindFirstChild("Handle") or tool.RequiresHandle == false) then
+        LastNPCAttack = os.clock()
+        pcall(function()
+            tool:Activate()
+        end)
+    end
+end
+
+local Combat = PageFrames.Combat
+Label(Combat, "⚔️ NPC TRAINING")
+Label(Combat, "Работает только в вашей собственной игре и только по NPC.")
+Toggle(Combat, "Auto Kill NPC", false, function(value)
+    if value and not IsOwnUserCreatedPlace() then
+        AutoKillNPC = false
+        Toast("Недоступно: запустите свою собственную игру")
+        return
+    end
+    AutoKillNPC = value
+    Toast(value and "Auto Kill NPC ON" or "Auto Kill NPC OFF")
+end)
+Button(Combat, "🔎 Найти ближайшего NPC", function()
+    local model, humanoid, root, distance = FindNearestNPC()
+    if model then
+        Toast(model.Name .. " • " .. math.floor(distance) .. " studs")
+    else
+        Toast("NPC в радиусе не найден")
+    end
+end)
+Button(Combat, "📏 Радиус: 12 studs", function()
+    NPCKillRadius = NPCKillRadius == 12 and 20 or (NPCKillRadius == 20 and 30 or 12)
+    Toast("Радиус NPC: " .. NPCKillRadius .. " studs")
+end)
+
+--========================================================
 -- HOME PAGE
 --========================================================
 
@@ -1419,6 +1525,7 @@ Button(Settings, "🗑 " .. T("Destroy"), function()
 
     RoleESP = false
     AutoDodge = false
+    AutoKillNPC = false
     StopFly()
     OpenButton.Visible = false
 
@@ -1621,6 +1728,9 @@ task.spawn(function()
     while Running and Gui.Parent do
         if AutoDodge then
             Dodge()
+        end
+        if AutoKillNPC then
+            UpdateAutoKillNPC()
         end
         if FlyEnabled then
             UpdateFly()
