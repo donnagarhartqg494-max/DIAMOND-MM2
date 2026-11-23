@@ -35,6 +35,10 @@ local AutoRefresh = true
 
 local SpeedEnabled = false
 local JumpEnabled = false
+local FlyEnabled = false
+local FlySpeed = 55
+local FlyVelocity = nil
+local FlyGyro = nil
 
 local PreviousRoles = {}
 local ESPObjects = {}
@@ -64,6 +68,7 @@ local Texts = {
         AutoDodge = "Автоуклонение от ножей",
         Speed = "Ускорение",
         Jump = "Высокий прыжок",
+        Fly = "Полёт",
         Refresh = "Обновить ESP",
         Detection = "Определение ролей",
         Unknown = "НЕИЗВЕСТНО",
@@ -93,6 +98,7 @@ local Texts = {
         AutoDodge = "Auto Dodge Knives",
         Speed = "Speed Boost",
         Jump = "High Jump",
+        Fly = "Fly",
         Refresh = "Refresh ESP",
         Detection = "Role Detection",
         Unknown = "UNKNOWN",
@@ -1008,6 +1014,102 @@ local function SetJump(value)
 end
 
 --========================================================
+-- FLY
+--========================================================
+
+local function StopFly()
+    FlyEnabled = false
+    if FlyVelocity then FlyVelocity:Destroy(); FlyVelocity = nil end
+    if FlyGyro then FlyGyro:Destroy(); FlyGyro = nil end
+end
+
+local function StartFly()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then
+        Toast("Character not ready")
+        return false
+    end
+
+    if FlyVelocity then FlyVelocity:Destroy() end
+    if FlyGyro then FlyGyro:Destroy() end
+
+    FlyVelocity = Instance.new("BodyVelocity")
+    FlyVelocity.Name = "DiamondFlyVelocity"
+    FlyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    FlyVelocity.P = 1e4
+    FlyVelocity.Velocity = Vector3.zero
+    FlyVelocity.Parent = root
+
+    FlyGyro = Instance.new("BodyGyro")
+    FlyGyro.Name = "DiamondFlyGyro"
+    FlyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+    FlyGyro.P = 1e4
+    FlyGyro.CFrame = root.CFrame
+    FlyGyro.Parent = root
+
+    FlyEnabled = true
+    return true
+end
+
+local function SetFly(value)
+    if value then
+        if StartFly() then
+            Toast("Fly ON • WASD + Space/Ctrl")
+        end
+    else
+        StopFly()
+        Toast("Fly OFF")
+    end
+end
+
+local function UpdateFly()
+    if not FlyEnabled then return end
+
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then
+        StopFly()
+        return
+    end
+
+    if not FlyVelocity or FlyVelocity.Parent ~= root then
+        if not StartFly() then return end
+    end
+
+    local camera = Workspace.CurrentCamera
+    if not camera then return end
+
+    local move = Vector3.zero
+    local look = camera.CFrame.LookVector
+    local right = camera.CFrame.RightVector
+
+    if UIS:IsKeyDown(Enum.KeyCode.W) then move += look end
+    if UIS:IsKeyDown(Enum.KeyCode.S) then move -= look end
+    if UIS:IsKeyDown(Enum.KeyCode.D) then move += right end
+    if UIS:IsKeyDown(Enum.KeyCode.A) then move -= right end
+    if UIS:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.yAxis end
+    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.C) then
+        move -= Vector3.yAxis
+    end
+
+    -- Touch/gamepad movement follows the Humanoid's move direction.
+    if UIS.TouchEnabled and move.Magnitude < 0.05 then
+        move = hum.MoveDirection
+    end
+
+    if move.Magnitude > 0 then
+        FlyVelocity.Velocity = move.Unit * FlySpeed
+    else
+        FlyVelocity.Velocity = Vector3.zero
+    end
+
+    FlyGyro.CFrame = camera.CFrame
+end
+
+--========================================================
 -- HOME PAGE
 --========================================================
 
@@ -1122,6 +1224,7 @@ end)
 
 Toggle(Visuals, T("Speed"), false, SetSpeed)
 Toggle(Visuals, T("Jump"), false, SetJump)
+Toggle(Visuals, T("Fly"), false, SetFly)
 
 --========================================================
 -- THEMES PAGE
@@ -1255,6 +1358,7 @@ Button(Settings, "🗑 " .. T("Destroy"), function()
 
     RoleESP = false
     AutoDodge = false
+    StopFly()
 
     for player in pairs(ESPObjects) do
         RemoveESP(player)
@@ -1393,6 +1497,9 @@ LP.CharacterAdded:Connect(function()
     local _, hum = GetCharacter()
 
     if hum then
+        if FlyEnabled then
+            StartFly()
+        end
         if SpeedEnabled then hum.WalkSpeed = 24 end
 
         if JumpEnabled then
@@ -1404,6 +1511,54 @@ LP.CharacterAdded:Connect(function()
         end
     end
 end)
+
+--========================================================
+-- ROUND ESP REFRESH
+-- Refresh immediately when the round/map or player characters change.
+-- The periodic refresh below remains as a fallback for role changes.
+--========================================================
+
+local refreshQueued = false
+local function QueueRoundESPRefresh()
+    if not AutoRefresh or not RoleESP or refreshQueued or not Running then return end
+    refreshQueued = true
+    task.delay(0.35, function()
+        refreshQueued = false
+        if Running and AutoRefresh and RoleESP then
+            RefreshESP()
+            CheckRoles()
+        end
+    end)
+end
+
+local lastMap = Workspace:FindFirstChild("Map")
+Workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Map" then
+        lastMap = child
+        QueueRoundESPRefresh()
+    end
+end)
+
+Workspace.ChildRemoved:Connect(function(child)
+    if child == lastMap or child.Name == "Map" then
+        lastMap = nil
+        QueueRoundESPRefresh()
+    end
+end)
+
+Players.PlayerAdded:Connect(QueueRoundESPRefresh)
+Players.PlayerRemoving:Connect(QueueRoundESPRefresh)
+
+local function WatchCharacter(player)
+    player.CharacterAdded:Connect(function()
+        QueueRoundESPRefresh()
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    WatchCharacter(player)
+end
+Players.PlayerAdded:Connect(WatchCharacter)
 
 --========================================================
 -- MAIN UPDATE LOOP
@@ -1425,6 +1580,9 @@ task.spawn(function()
     while Running and Gui.Parent do
         if AutoDodge then
             Dodge()
+        end
+        if FlyEnabled then
+            UpdateFly()
         end
 
         RunService.Heartbeat:Wait()
